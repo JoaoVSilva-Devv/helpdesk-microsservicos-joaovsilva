@@ -1,8 +1,8 @@
-"""Acesso a dados do módulo de chamados (uso interno do módulo)."""
+"""Acesso a dados do banco de chamados."""
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.chamados.modelos import Chamado, Comentario
+from chamados.modelos import Chamado, Comentario
 
 
 def salvar(db: Session, chamado: Chamado) -> Chamado:

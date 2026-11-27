@@ -6,12 +6,11 @@ from pydantic import BaseModel, ConfigDict, Field
 Prioridade = Literal["baixa", "media", "alta", "critica"]
 Status = Literal["aberto", "em_atendimento", "resolvido", "fechado"]
 
-
 ENTRADA = ConfigDict(extra="forbid", str_strip_whitespace=True)
 
 
 class ChamadoCriar(BaseModel):
-    """O solicitante é sempre o usuário logado: não vem no corpo da requisição."""
+    """O solicitante é sempre o usuário do token, nunca vem no corpo."""
     model_config = ENTRADA
 
     titulo: str = Field(min_length=3, max_length=120)
@@ -31,7 +30,6 @@ class MudancaStatus(BaseModel):
 
 
 class ComentarioCriar(BaseModel):
-    """O autor é sempre o usuário logado."""
     model_config = ENTRADA
     texto: str = Field(min_length=1, max_length=2000)
 
