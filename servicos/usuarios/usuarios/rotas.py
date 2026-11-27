@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.auth.dependencias import exigir_perfil, usuario_atual
-from app.database import get_db
-from app.usuarios import servico
-from app.usuarios.esquemas import Perfil, UsuarioCriar, UsuarioPublico, UsuarioSaida
+from usuarios import servico
+from usuarios.auth.dependencias import exigir_perfil, usuario_atual
+from usuarios.database import get_db
+from usuarios.esquemas import Perfil, UsuarioCriar, UsuarioPublico, UsuarioSaida
 
 router = APIRouter(prefix="/usuarios", tags=["Usuários"])
 

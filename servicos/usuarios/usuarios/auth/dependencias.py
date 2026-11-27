@@ -1,11 +1,11 @@
-"""Dependências do FastAPI para exigir login e perfil."""
+"""Toda rota deste serviço confere o token antes de responder."""
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
-from app.auth import tokens
-from app.database import get_db
-from app.usuarios.modelos import Usuario
+from usuarios import tokens
+from usuarios.database import get_db
+from usuarios.modelos import Usuario
 
 esquema = HTTPBearer(auto_error=False)
 
@@ -23,10 +23,11 @@ def usuario_atual(
     if credenciais is None or credenciais.scheme.lower() != "bearer":
         raise NAO_AUTENTICADO
     try:
-        usuario_id = tokens.ler(credenciais.credentials)
+        claims = tokens.ler(credenciais.credentials)
     except tokens.TokenInvalido:
         raise NAO_AUTENTICADO
-    usuario = db.get(Usuario, usuario_id)
+    # Confere também no banco deste serviço: um usuário desativado perde o acesso.
+    usuario = db.get(Usuario, claims["id"])
     if usuario is None or not usuario.ativo:
         raise NAO_AUTENTICADO
     return usuario

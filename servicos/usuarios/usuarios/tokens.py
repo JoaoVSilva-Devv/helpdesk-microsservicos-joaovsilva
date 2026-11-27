@@ -1,9 +1,9 @@
-"""Criação e validação dos tokens JWT."""
+"""Tokens JWT: o login cria; os demais serviços apenas validam com o mesmo segredo."""
 from datetime import datetime, timedelta, timezone
 
 import jwt
 
-from app.config import JWT_ALGORITMO, JWT_EMISSOR, JWT_SEGREDO, TOKEN_MINUTOS
+from usuarios.config import JWT_ALGORITMO, JWT_EMISSOR, JWT_SEGREDO, TOKEN_MINUTOS
 
 
 class TokenInvalido(Exception):
@@ -17,13 +17,13 @@ def criar(usuario_id: int, perfil: str) -> tuple[str, datetime]:
     return jwt.encode(dados, JWT_SEGREDO, algorithm=JWT_ALGORITMO), expira
 
 
-def ler(token: str) -> int:
-    """Devolve o id do usuário do token, ou lança TokenInvalido."""
+def ler(token: str) -> dict:
+    """Devolve {"id", "perfil"} do token, ou lança TokenInvalido."""
     try:
         dados = jwt.decode(
             token, JWT_SEGREDO, algorithms=[JWT_ALGORITMO], issuer=JWT_EMISSOR,
-            options={"require": ["exp", "iat", "sub", "iss"]},
+            options={"require": ["exp", "iat", "sub", "iss", "perfil"]},
         )
-        return int(dados["sub"])
-    except (jwt.PyJWTError, ValueError) as erro:
+        return {"id": int(dados["sub"]), "perfil": dados["perfil"]}
+    except (jwt.PyJWTError, ValueError, KeyError) as erro:
         raise TokenInvalido() from erro

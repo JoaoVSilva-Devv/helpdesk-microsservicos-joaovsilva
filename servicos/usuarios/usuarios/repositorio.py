@@ -1,8 +1,8 @@
-"""Acesso a dados do módulo de usuários (uso interno do módulo)."""
+"""Acesso a dados do banco de usuários."""
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.usuarios.modelos import Usuario
+from usuarios.modelos import Usuario
 
 
 def salvar(db: Session, usuario: Usuario) -> Usuario:

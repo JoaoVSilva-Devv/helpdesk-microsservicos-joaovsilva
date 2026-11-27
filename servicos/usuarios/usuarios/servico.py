@@ -1,11 +1,11 @@
-"""Regras do módulo de usuários. É a porta pública do módulo."""
+"""Regras e porta pública do serviço de usuários."""
 from sqlalchemy.orm import Session
 
-from app.auth import senhas
-from app.erros import NaoEncontrado, RegraDeNegocio
-from app.usuarios import repositorio
-from app.usuarios.esquemas import UsuarioCriar
-from app.usuarios.modelos import Usuario
+from usuarios import repositorio
+from usuarios.auth import senhas
+from usuarios.erros import NaoEncontrado, RegraDeNegocio
+from usuarios.esquemas import UsuarioCriar
+from usuarios.modelos import Usuario
 
 
 def criar(db: Session, dados: UsuarioCriar) -> Usuario:
@@ -24,13 +24,6 @@ def obter(db: Session, usuario_id: int) -> Usuario:
     usuario = repositorio.buscar_por_id(db, usuario_id)
     if usuario is None:
         raise NaoEncontrado(f"Usuário {usuario_id} não encontrado.")
-    return usuario
-
-
-def obter_tecnico(db: Session, usuario_id: int) -> Usuario:
-    usuario = obter(db, usuario_id)
-    if usuario.perfil != "tecnico":
-        raise RegraDeNegocio(f"Usuário {usuario_id} não é técnico.")
     return usuario
 
 

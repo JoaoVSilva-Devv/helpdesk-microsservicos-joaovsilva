@@ -1,7 +1,4 @@
-"""Hash de senhas com scrypt (biblioteca padrão do Python).
-
-A senha nunca é guardada: guardamos só o resultado do hash, com um sal aleatório.
-"""
+"""Hash de senhas com scrypt (biblioteca padrão do Python)."""
 import base64
 import hashlib
 import hmac
@@ -29,9 +26,7 @@ def conferir(senha: str, hash_guardado: str) -> bool:
         )
     except (ValueError, TypeError):
         return False
-    # compare_digest evita descobrir a senha pelo tempo de resposta
     return hmac.compare_digest(resultado, base64.b64decode(esperado))
 
 
-# Usado quando o e-mail não existe, para que a resposta leve o mesmo tempo
 HASH_FALSO = gerar_hash(secrets.token_urlsafe(16))

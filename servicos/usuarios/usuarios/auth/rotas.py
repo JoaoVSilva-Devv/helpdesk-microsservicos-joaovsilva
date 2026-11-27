@@ -1,15 +1,16 @@
+"""Login (único lugar que emite tokens) e dados do usuário logado."""
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 from sqlalchemy.orm import Session
 
-from app.auth import limite, senhas, tokens
-from app.auth.dependencias import usuario_atual
-from app.database import get_db
-from app.usuarios import servico as usuarios
-from app.usuarios.esquemas import UsuarioSaida
-from app.usuarios.modelos import Usuario
+from usuarios import tokens
+from usuarios.auth import limite, senhas
+from usuarios.auth.dependencias import usuario_atual
+from usuarios.database import get_db
+from usuarios import servico as usuarios
+from usuarios.esquemas import UsuarioSaida
 
 router = APIRouter(prefix="/auth", tags=["Autenticação"])
 
@@ -35,7 +36,7 @@ def login(dados: Login, request: Request, db: Session = Depends(get_db)):
         raise HTTPException(status.HTTP_429_TOO_MANY_REQUESTS, "Muitas tentativas. Tente de novo em alguns minutos.")
 
     usuario = usuarios.buscar_por_email(db, email)
-    # Confere a senha mesmo sem usuário, para o tempo de resposta não revelar se o e-mail existe
+    # Confere a senha mesmo sem usuário, para o tempo não revelar se o e-mail existe.
     senha_ok = senhas.conferir(dados.senha, usuario.senha_hash if usuario else senhas.HASH_FALSO)
     if not usuario or not senha_ok or not usuario.ativo:
         limite.registrar_falha(chave)
@@ -47,5 +48,5 @@ def login(dados: Login, request: Request, db: Session = Depends(get_db)):
 
 
 @router.get("/eu", response_model=UsuarioSaida)
-def quem_sou_eu(usuario: Usuario = Depends(usuario_atual)):
+def quem_sou_eu(usuario=Depends(usuario_atual)):
     return usuario

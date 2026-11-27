@@ -1,14 +1,9 @@
-"""Limite de tentativas de login (em memória).
-
-Depois de várias senhas erradas para o mesmo e-mail e endereço, o login fica
-bloqueado por alguns minutos. Em microsserviços, esse controle precisaria
-ficar em um lugar compartilhado (por exemplo, Redis).
-"""
+"""Limite de tentativas de login (em memória, por e-mail e endereço)."""
 import time
 from collections import defaultdict
 from threading import Lock
 
-from app.config import LOGIN_JANELA_SEGUNDOS, LOGIN_MAX_FALHAS
+from usuarios.config import LOGIN_JANELA_SEGUNDOS, LOGIN_MAX_FALHAS
 
 _falhas: dict[str, list[float]] = defaultdict(list)
 _trava = Lock()
