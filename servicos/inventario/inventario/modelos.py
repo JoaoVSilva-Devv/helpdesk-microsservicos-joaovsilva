@@ -1,10 +1,11 @@
 from sqlalchemy import String
 from sqlalchemy.orm import Mapped, mapped_column
 
-from app.database import Base
+from inventario.database import Base
 
 
 class Ativo(Base):
+    """Tabela exclusiva do banco de inventário (sem chaves estrangeiras externas)."""
     __tablename__ = "ativos"
 
     id: Mapped[int] = mapped_column(primary_key=True)

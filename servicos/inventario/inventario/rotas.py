@@ -1,10 +1,10 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 
-from app.auth.dependencias import exigir_perfil, usuario_atual
-from app.database import get_db
-from app.inventario import servico
-from app.inventario.esquemas import AtivoCriar, AtivoSaida
+from inventario import servico
+from inventario.database import get_db
+from inventario.esquemas import AtivoCriar, AtivoSaida
+from inventario.seguranca_usuario import exigir_perfil, usuario_atual
 
 router = APIRouter(prefix="/ativos", tags=["Inventário"])
 
