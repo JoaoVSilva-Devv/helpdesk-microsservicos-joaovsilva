@@ -1,155 +1,155 @@
-# HelpDesk TI · versão monolítica
+# HelpDesk TI · microsserviços
 
-Sistema de chamados de TI (no estilo de um GLPI simplificado), feito em **Python + FastAPI**.
-É a aplicação base da atividade de **Arquitetura de Software**: hoje ela é um **monólito**;
-a missão de cada aluno é transformá-la em **microsserviços** (veja [DESAFIO.md](DESAFIO.md)).
+> **Vídeo de demonstração (4–6 min):** `[COLOQUE AQUI O LINK DO YOUTUBE (não listado) OU DO GOOGLE DRIVE]`
+>
+> Roteiro pronto no final deste README.
 
-## Telas do sistema
+Sistema de chamados de TI (estilo GLPI simplificado) em **Python + FastAPI**.
+O projeto original era um monólito; agora ele está separado em **três serviços independentes**,
+cada um com o seu banco, mais um **API Gateway** que é o único ponto de entrada na porta **8000**.
+A tela e todas as funcionalidades continuam iguais — só a arquitetura mudou.
 
-![Demonstração: entrar, abrir, atribuir, resolver e fechar um chamado](docs/demo.gif)
+## Arquitetura
 
-| Login | Painel do técnico | Chamado resolvido |
-|---|---|---|
-| ![Login](docs/01-login.png) | ![Painel](docs/02-painel.png) | ![Chamado resolvido](docs/03-chamado-resolvido.png) |
+```mermaid
+flowchart TB
+    Tela[Tela do HelpDesk] --> Gateway[API Gateway :8000]
+    Gateway --> SU[Serviço de Usuários]
+    Gateway --> SI[Serviço de Inventário]
+    Gateway --> SC[Serviço de Chamados]
+    SC -->|HTTP com token, timeout 2s| SU
+    SC -->|HTTP com token, timeout 2s| SI
+    SU --> BU[(Banco de usuários)]
+    SI --> BI[(Banco de inventário)]
+    SC --> BC[(Banco de chamados + notificações)]
+    Gateway -. GET /saude .-> SU
+    Gateway -. GET /saude .-> SI
+    Gateway -. GET /saude .-> SC
+```
 
-## O que o sistema faz
+Opcional (bônus) não implementado: fila de eventos + serviço de Notificações separado.
+As notificações continuam funcionando, gravadas no banco do serviço de Chamados — isso evita
+mais uma infraestrutura e mantém os chamados funcionando mesmo se algo relacionado a avisos falhar.
 
-- **Login** com e-mail e senha; cada pessoa vê e faz só o que o seu perfil permite.
-- Cadastra **usuários** e **equipamentos** (inventário de TI).
-- **Abre chamados** com prioridade e calcula o prazo de atendimento (SLA): crítica 4 h, alta 8 h, média 24 h, baixa 72 h.
-- **Atribui** chamados a técnicos, controla o **status** e aceita **comentários**.
-- Registra **notificações** quando um chamado é aberto, atribuído ou resolvido.
-- Mostra um **painel** com totais por status e chamados atrasados.
+### Estrutura
 
-### Perfis e permissões
+```
+gateway/                  API Gateway + tela (index.html, app.js, estilo.css)
+servicos/usuarios/        login, JWT, cadastro de usuários  → usuarios.db
+servicos/inventario/      equipamentos de TI                → inventario.db
+servicos/chamados/        chamados, SLA, comentários e notificações → chamados.db
+tests/                    teste da tela
+```
 
-| Ação | Solicitante | Técnico | Administrador |
-|---|:-:|:-:|:-:|
-| Abrir chamado | ✅ | ✅ | ✅ |
-| Ver chamados | só os seus | todos | todos |
-| Comentar | nos seus | todos | todos |
-| Atribuir e resolver | ❌ | ✅ | ✅ |
-| Fechar ou reabrir um chamado resolvido | os seus | ✅ | ✅ |
-| Cadastrar equipamentos | ❌ | ✅ | ✅ |
-| Cadastrar usuários | ❌ | ❌ | ✅ |
+Cada serviço tem o seu próprio `Dockerfile`, `requirements.txt`, pacote Python e testes.
+Qualquer um pode ser iniciado sozinho (`uvicorn usuarios.main:app`, por exemplo).
 
 ## Como rodar
 
-**Com Docker**
-
 ```bash
 docker compose up --build
+docker compose ps
 ```
 
-**Sem Docker** (Python 3.11 ou mais novo)
+Abra **http://localhost:8000**. O gateway serve a tela e encaminha:
+
+| Rota | Serviço |
+|---|---|
+| `/auth/login`, `/auth/eu`, `/usuarios` | Usuários |
+| `/ativos` | Inventário |
+| `/chamados`, `/notificacoes` | Chamados |
+
+Copie `.env.example` para `.env` para trocar o `JWT_SEGREDO` (use o mesmo valor para todos os serviços).
+Sem `.env`, o Compose usa um segredo de desenvolvimento — nunca use essa configuração em produção.
+
+**Sem Docker** (Python 3.11+), em quatro terminais, com `JWT_SEGREDO` compartilhado:
 
 ```bash
-pip install -r requirements-dev.txt
-uvicorn app.main:app --reload
+# em servicos/usuarios
+DATABASE_URL=sqlite:///./usuarios.db uvicorn usuarios.main:app --port 8001
+# em servicos/inventario
+DATABASE_URL=sqlite:///./inventario.db uvicorn inventario.main:app --port 8002
+# em servicos/chamados
+DATABASE_URL=sqlite:///./chamados.db USUARIOS_URL=http://localhost:8001 \
+  INVENTARIO_URL=http://localhost:8002 uvicorn chamados.main:app --port 8003
+# em gateway
+USUARIOS_URL=http://localhost:8001 INVENTARIO_URL=http://localhost:8002 \
+  CHAMADOS_URL=http://localhost:8003 uvicorn gateway.main:app --port 8000
 ```
-
-Depois abra:
-
-- Tela do HelpDesk: http://localhost:8000
-- Documentação da API (Swagger): http://localhost:8000/docs (clique em **Authorize** e cole o token do login)
 
 ### Contas de acesso
 
-Não é preciso criar conta: o sistema já começa com estes usuários.
-Todos usam a senha **`Helpdesk2026`**.
+Senha para todas: **`Helpdesk2026`** (configurável por `SENHA_EXEMPLO`).
 
-| E-mail | Perfil | O que pode fazer |
-|---|---|---|
-| `admin@empresa.com` | Administrador | Tudo, inclusive cadastrar usuários |
-| `carla@empresa.com` | Técnica | Ver todos os chamados, atribuir, resolver e cadastrar equipamentos |
-| `diego@empresa.com` | Técnico | O mesmo que a Carla |
-| `ana@empresa.com` | Solicitante | Abrir chamados e ver só os próprios |
-| `bruno@empresa.com` | Solicitante | O mesmo que a Ana |
+| E-mail | Perfil |
+|---|---|
+| `admin@empresa.com` | Administrador |
+| `carla@empresa.com`, `diego@empresa.com` | Técnicos |
+| `ana@empresa.com`, `bruno@empresa.com` | Solicitantes |
 
-Dicas:
+Use **Carla** para o fluxo completo e **Ana** para conferir as permissões.
+Os dados de exemplo são criados por cada serviço no seu próprio banco, apenas na primeira subida (`DADOS_EXEMPLO=1`).
 
-- Para testar o fluxo completo (abrir, atribuir, resolver e fechar), entre como **Carla**.
-- Para testar as permissões, entre como **Ana**: ela não vê os chamados do Bruno.
-- Para trocar a senha de todas as contas, defina `SENHA_EXEMPLO` no arquivo `.env`.
-- As contas só são criadas quando o sistema sobe com `DADOS_EXEMPLO=1` (o padrão), e só na primeira vez, com o banco vazio.
+## Funcionalidades
 
-> Estas contas têm senha conhecida e servem só para aula. Em produção, use `DADOS_EXEMPLO=0`.
+Abrir chamado com SLA (crítica 4 h, alta 8 h, média 24 h, baixa 72 h), atribuir técnico,
+mudar status (`aberto → em_atendimento → resolvido → fechado`, com reabertura permitida),
+comentar, ver o painel e receber notificações. As mesmas regras de permissão do monólito valem:
+solicitante vê só os próprios chamados, só técnicos/admin atribuem e resolvem, só admin cria usuários.
 
-### Configuração
+## Segurança
 
-Copie `.env.example` para `.env` e ajuste. O principal é o `JWT_SEGREDO`, que assina os logins.
-O arquivo `.env` nunca deve ir para o GitHub (ele já está no `.gitignore`).
+- `/auth/login` é o único lugar que emite tokens; **todos os serviços validam o JWT** antes de responder.
+- Os serviços de Inventário e Chamados validam assinatura, prazo, emissor e perfil **localmente**,
+  sem ler o banco de usuários. O login confere também se o usuário está ativo no banco dele.
+- Ao chamar outro serviço, o Chamados **repassa o `Authorization`** do usuário.
+- Só o gateway publica porta; serviços e bancos ficam apenas na rede interna do Docker.
+- Segredo `JWT_SEGREDO` vem do `.env`/ambiente; os contêineres rodam como usuário sem privilégios,
+  com sistema de arquivos somente leitura e sem capacidades extras.
+
+Detalhes em [SECURITY.md](SECURITY.md).
+
+## Decisões tomadas
+
+1. **Banco por serviço:** cada SQLite é um volume separado. As FK entre serviços foram removidas;
+   `solicitante_id`, `tecnico_id`, `ativo_id` e `autor_id` são só inteiros. A existência do técnico
+   e do equipamento é conferida pela rede no momento da operação.
+2. **HTTP com timeout e falha clara:** Chamados usa `httpx` com timeout de 2 s. Se Usuários ou
+   Inventário estiver fora, responde `503` com mensagem explicando qual serviço falhou, sem travar.
+   O gateway espera 5 s (`GATEWAY_TIMEOUT_SEGUNDOS`) para conseguir repassar essa mensagem.
+3. **Token compartilhado, banco não compartilhado:** o JWT é assinado com o mesmo segredo e
+   carrega o perfil. Assim cada serviço aplica as permissões sem depender do banco dos outros.
+   Um usuário desativado é barrado no próprio serviço de Usuários.
+4. **Gateway fino:** FastAPI + `httpx` repassando método, corpo, query e cabeçalhos. A tela continua
+   com `API = ""` (mesma origem), então nenhuma URL precisou mudar. `GET /saude` do gateway mostra
+   quais serviços estão no ar.
+5. **Notificações no serviço de Chamados:** são geradas pelas mesmas regras de antes e ficam no banco
+   dos chamados. Fila de eventos e um serviço de Notificações separado ficaram como bônus opcional.
+6. **Cada serviço sobe sozinho:** o *seed* de cada um é local; o Chamados não precisa que os outros
+   estejam prontos para iniciar (usa apenas os ids conhecidos dos exemplos).
 
 ## Testes
 
 ```bash
+pip install -r requirements-dev.txt
 pytest -q
 ```
 
-São 36 testes, incluindo **testes de segurança** (`tests/test_seguranca.py`): login, token falso ou vencido,
-bloqueio de tentativas, permissões por perfil, campos extras e limites de tamanho.
-A cada envio ao GitHub, os testes rodam sozinhos e o `pip-audit` confere se alguma dependência tem falha conhecida.
+São **39 testes**, separados por serviço (`servicos/<servico>/tests/`): regras de negócio,
+permissões, token inválido/vencido/sem assinatura, campos extras, limites de tamanho,
+comunicação HTTP com token repassado e simulação de serviço fora do ar (503).
+O GitHub Actions roda a suíte e o `pip-audit` a cada envio.
 
-## Segurança
+## Roteiro do vídeo (4–6 min)
 
-Veja o que está protegido e o que fazer antes de usar em produção em [SECURITY.md](SECURITY.md).
-
-## Arquitetura atual (monólito)
-
-Uma aplicação, um banco e uma implantação. O código é dividido em **módulos**, e cada módulo
-só usa a **porta pública** do outro (o arquivo `servico.py`).
-
-```mermaid
-flowchart TB
-    Tela[Tela do HelpDesk] --> API
-    subgraph API[Aplicação HelpDesk · um processo]
-        Auth[auth]
-        Usuarios[usuarios]
-        Inventario[inventario]
-        Chamados[chamados]
-        Notificacoes[notificacoes]
-        Auth -->|confere a senha| Usuarios
-        Chamados -->|chamada de função| Usuarios
-        Chamados -->|chamada de função| Inventario
-        Chamados -->|chamada de função| Notificacoes
-    end
-    API --> BD[(Banco único)]
-```
-
-```
-app/
-├── main.py            # junta os módulos e sobe a aplicação
-├── config.py          # configurações (variáveis de ambiente)
-├── database.py        # conexão com o banco único
-├── seguranca_http.py  # cabeçalhos de segurança e limite de tamanho
-├── erros.py           # erros de negócio
-├── dados_exemplo.py   # dados iniciais (só para aula)
-├── web/               # tela: index.html, app.js, estilo.css
-├── auth/              # senhas (scrypt), tokens JWT, login, limite de tentativas
-├── usuarios/          # modelos, esquemas, repositorio, servico (público), rotas
-├── inventario/
-├── chamados/          # depende de usuarios, inventario e notificacoes
-└── notificacoes/
-```
-
-Em `app/chamados/servico.py`, os comentários `# vira chamada HTTP` e `# vira evento` marcam
-os pontos que mudam quando o sistema for separado.
-
-## Rotas principais
-
-Todas exigem login, exceto `/auth/login` e `/saude`.
-
-| Método | Rota | O que faz | Quem pode |
-|---|---|---|---|
-| POST | `/auth/login` | Entra e recebe o token | Todos |
-| GET | `/auth/eu` | Dados de quem está logado | Logado |
-| POST | `/usuarios` | Cria usuário | Admin |
-| GET | `/usuarios` | Lista usuários (sem e-mail) | Logado |
-| POST / GET | `/ativos` | Cria e lista equipamentos | Técnico e admin / logado |
-| POST | `/chamados` | Abre chamado em nome de quem está logado | Logado |
-| GET | `/chamados` | Lista chamados | Logado (solicitante vê só os seus) |
-| GET | `/chamados/painel` | Totais por status e atrasados | Logado |
-| PATCH | `/chamados/{id}/atribuir` | Atribui a um técnico | Técnico e admin |
-| PATCH | `/chamados/{id}/status` | Muda o status | Técnico e admin (solicitante: fechar ou reabrir) |
-| POST | `/chamados/{id}/comentarios` | Comenta no chamado | Envolvidos |
-| GET | `/notificacoes` | Minhas notificações | Logado |
+1. Mostre o diagrama acima e explique os serviços, o gateway e os bancos.
+2. `docker compose up --build` e `docker compose ps`.
+3. Pela tela, entre como **carla@empresa.com**, abra um chamado com equipamento, atribua,
+   resolva e feche. Repare que a URL continua `localhost:8000`.
+4. `curl -i http://localhost:8000/chamados` (sem token) → **401**; entre como Ana e tente ver
+   o chamado da Carla → **404**.
+5. Mostre os três volumes/bancos (`docker volume ls` e os arquivos em cada volume).
+6. `docker compose stop inventario`: lista de usuários e chamados continua; abrir chamado com
+   equipamento mostra **503 com mensagem clara**. Depois `docker compose start inventario`.
+7. Explique o que mudou: deploy independente e isolamento de banco melhoraram; a rede, o timeout
+   e a consistência entre serviços são novos desafios.

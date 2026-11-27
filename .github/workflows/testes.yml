@@ -16,7 +16,7 @@ jobs:
         with:
           python-version: "3.12"
       - run: pip install -r requirements-dev.txt
-      - name: Testes (inclui testes de segurança)
+      - name: Testes de cada serviço + gateway (inclui segurança)
         run: pytest -q
       - name: Dependências com falhas conhecidas
         run: pip-audit -r requirements.txt
