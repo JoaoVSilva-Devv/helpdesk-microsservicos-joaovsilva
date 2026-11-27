@@ -1,15 +1,107 @@
 services:
-  helpdesk:
-    build: .
+  # Único ponto exposto: tela + API (porta 8000).
+  gateway:
+    build: ./gateway
     ports:
       - "127.0.0.1:8000:8000"   # só acessível pelo próprio computador
     env_file:
       - path: .env
         required: false
     environment:
+      DOCS: ${DOCS:-1}
+      GATEWAY_TIMEOUT_SEGUNDOS: ${GATEWAY_TIMEOUT_SEGUNDOS:-5}
+    depends_on:
+      usuarios:
+        condition: service_healthy
+      inventario:
+        condition: service_healthy
+      chamados:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  usuarios:
+    build: ./servicos/usuarios
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////dados/usuarios.db
+      JWT_SEGREDO: ${JWT_SEGREDO:-helpdesk-microsservicos-segredo-de-desenvolvimento-com-32-caracteres}
       DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
+      DOCS: ${DOCS:-1}
+      TOKEN_MINUTOS: ${TOKEN_MINUTOS:-60}
+      SENHA_EXEMPLO: ${SENHA_EXEMPLO:-Helpdesk2026}
     volumes:
-      - dados:/dados
+      - dados_usuarios:/dados
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  inventario:
+    build: ./servicos/inventario
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////dados/inventario.db
+      JWT_SEGREDO: ${JWT_SEGREDO:-helpdesk-microsservicos-segredo-de-desenvolvimento-com-32-caracteres}
+      DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
+      DOCS: ${DOCS:-1}
+    volumes:
+      - dados_inventario:/dados
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+
+  chamados:
+    build: ./servicos/chamados
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      DATABASE_URL: sqlite:////dados/chamados.db
+      JWT_SEGREDO: ${JWT_SEGREDO:-helpdesk-microsservicos-segredo-de-desenvolvimento-com-32-caracteres}
+      DADOS_EXEMPLO: ${DADOS_EXEMPLO:-1}
+      DOCS: ${DOCS:-1}
+      USUARIOS_URL: http://usuarios:8000
+      INVENTARIO_URL: http://inventario:8000
+      HTTP_TIMEOUT_SEGUNDOS: ${HTTP_TIMEOUT_SEGUNDOS:-2}
+    volumes:
+      - dados_chamados:/dados
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/saude')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
     read_only: true
     tmpfs:
       - /tmp
@@ -19,4 +111,6 @@ services:
       - ALL
 
 volumes:
-  dados:
+  dados_usuarios:
+  dados_inventario:
+  dados_chamados:
